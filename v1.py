@@ -2,17 +2,21 @@ import pandas as pd
 import requests 
 import json 
 
-url = 'https://gamersclub.com.br/lobby/match/22697838/1'
-request = requests.get(url)
-request_response = request.text
-data = json.loads(request_response)
+# List of game IDs
+game_ids = [
+    '22697838',
+    '22696865',
+    '22696257',
+    '22690039',
+    '22689221',
+    '22681248',
+    '22649868',
+    '22649297',
+    '22648675'
+]
 
-# Extract players data from both teams
-team_a = data['jogos']['players']['team_a']
-team_b = data['jogos']['players']['team_b']
-
-# Combine both teams' data
-all_players = team_a + team_b
+# Create an empty list to store all games data
+all_games_data = []
 
 # Define the columns we want to extract
 columns = [
@@ -42,24 +46,51 @@ columns = [
     'multikills'      # Multi-kill rounds
 ]
 
-# Create a list to store player data
-players_data = []
+# Loop through each game ID
+for game_id in game_ids:
+    try:
+        # Construct URL for each game
+        url = f'https://gamersclub.com.br/lobby/match/{game_id}/1'
+        request = requests.get(url)
+        request_response = request.text
+        data = json.loads(request_response)
 
-# Extract data for each player
-for player in all_players:
-    player_dict = {
-        'nick': player['player']['nick'],  # Player nickname
-        'team': 'Team A' if player['player_room'] == 'a' else 'Team B'
-    }
-    
-    # Add stats from the columns list
-    for col in columns:
-        player_dict[col] = player[col]
-    
-    players_data.append(player_dict)
+        # Extract players data from both teams
+        team_a = data['jogos']['players']['team_a']
+        team_b = data['jogos']['players']['team_b']
 
-# Create DataFrame
-df = pd.DataFrame(players_data)
+        # Get the match date and map name from jogos
+        match_date = data['jogos']['updated_at']
+        map_name = data['jogos']['map_name']
+
+        # Combine both teams' data
+        all_players = team_a + team_b
+
+        # Extract data for each player
+        for player in all_players:
+            player_dict = {
+                'game_id': game_id,  # Add game ID to track which game
+                'nick': player['player']['nick'],
+                'team': 'Team A' if player['player_room'] == 'a' else 'Team B',
+                'updated_at': match_date,
+                'map_name': map_name
+            }
+            
+            # Add stats from the columns list
+            for col in columns:
+                if col != 'updated_at':  # Skip updated_at as we already added it
+                    player_dict[col] = player[col]
+            
+            all_games_data.append(player_dict)
+        
+        print(f"Successfully processed game {game_id}")
+        
+    except Exception as e:
+        print(f"Error processing game {game_id}: {str(e)}")
+        continue
+
+# Create DataFrame from all games
+df = pd.DataFrame(all_games_data)
 
 # Convert numeric columns
 numeric_columns = [
@@ -74,14 +105,12 @@ df[numeric_columns] = df[numeric_columns].astype(int)
 percentage_columns = ['adr', 'kdr', 'phs', 'pkast']
 df[percentage_columns] = df[percentage_columns].astype(float)
 
-print(df['updated_at'])
-
 # Convert date column
 df['updated_at'] = pd.to_datetime(df['updated_at'])
 
 # Display the DataFrame
 print(df)
 
-
-#df.to_excel('data1.xlsx')
+# Save to Excel with all games
+df.to_excel('all_games_data2.xlsx')
 
